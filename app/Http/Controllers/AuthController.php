@@ -3,126 +3,180 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use App\Http\Requests\RegisterRequest;
-use App\Http\Requests\LoginRequest;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    public function register(RegisterRequest $request)
+    public function register(Request $request)
     {
-        $user = User::create([
-            'first_name' => $request->first_name,
-            'last_name'  => $request->last_name,
-            'phone'      => $request->phone,
-            'address'    => $request->address,
-            'email'      => $request->email,
-            'password'   => Hash::make($request->password),
-            'role'       => 'customer',
-            'status'     => 'active'
-        ]);
+        try {
+            $validated = $request->validate([
+                'first_name' => 'required|string|max:50',
+                'last_name' => 'required|string|max:50',
+                'phone' => 'required|string|digits:10|starts_with:09|unique:users',
+                'address' => 'required|string|max:255',
+                'email' => 'required|email|unique:users',
+                'password' => 'required|string|min:6|confirmed',
+            ]);
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+            $user = User::create([
+                'first_name' => $validated['first_name'],
+                'last_name' => $validated['last_name'],
+                'phone' => $validated['phone'],
+                'address' => $validated['address'],
+                'email' => $validated['email'],
+                'password' => Hash::make($validated['password']),
+                'role' => 'customer',
+                'status' => 'active'
+            ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Registration completed successfully',
-            'data' => [
-                'user' => [
-                    'id'                => $user->id,
-                    'first_name'        => $user->first_name,
-                    'last_name'         => $user->last_name,
-                    'full_name'         => $user->full_name,
-                    'phone'             => $user->phone,
-                    'address'           => $user->address,
-                    'email'             => $user->email,
-                    'role'              => $user->role,
-                    'status'            => $user->status,
-                    'is_profile_complete' => $user->isProfileComplete(),
-                    'is_active'         => $user->isActive(),
-                    'is_admin'          => $user->isAdmin(),
+            $token = $user->createToken('auth_token')->plainTextToken;
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Registration successful',
+                'data' => [
+                    'user' => [
+                        'id' => $user->id,
+                        'first_name' => $user->first_name,
+                        'last_name' => $user->last_name,
+                        'full_name' => $user->first_name . ' ' . $user->last_name,
+                        'phone' => $user->phone,
+                        'address' => $user->address,
+                        'email' => $user->email,
+                        'role' => $user->role,
+                        'status' => $user->status,
+                        'is_profile_complete' => $user->isProfileComplete(),
+                        'is_active' => $user->status === 'active',
+                        'is_admin' => $user->role === 'admin'
+                    ],
+                    'token' => $token,
+                    'token_type' => 'Bearer'
                 ],
-                'token' => $token,
-                'token_type' => 'Bearer'
-            ],
-            'redirect_to' => '/customer/home'
-        ], 201);
+                'redirect_to' => '/customer/home'
+            ]);
+
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors' => $e->errors()
+            ], 422);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred during registration'
+            ], 500);
+        }
     }
 
-    public function login(LoginRequest $request)
+    public function login(Request $request)
     {
-        $user = User::where('email', $request->email)->first();
+        try {
+            $validated = $request->validate([
+                'email' => 'required|email',
+                'password' => 'required|string|min:6',
+            ]);
 
-        if (!$user) {
+            $user = User::where('email', $validated['email'])->first();
+
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Email not registered'
+                ], 404);
+            }
+
+            if (!Hash::check($validated['password'], $user->password)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid password'
+                ], 401);
+            }
+
+            if ($user->status !== 'active') {
+                $message = '';
+                if ($user->status === 'inactive') {
+                    $message = 'Your account is inactive. Please contact support';
+                } elseif ($user->status === 'banned') {
+                    $message = 'Your account has been banned';
+                }
+
+                return response()->json([
+                    'success' => false,
+                    'message' => $message,
+                    'account_status' => $user->status
+                ], 403);
+            }
+
+            $user->tokens()->delete();
+
+            $token = $user->createToken('auth_token')->plainTextToken;
+
+            $redirectTo = $user->role === 'admin' ? '/admin/dashboard' : '/customer/home';
+
             return response()->json([
-                'success' => false,
-                'message' => 'Email address is not registered'
-            ], 404);
-        }
-
-        if (!Hash::check($request->password, $user->password)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid password'
-            ], 401);
-        }
-
-        if (!$user->isActive()) {
-            $statusMessages = [
-                'inactive' => 'Account is inactive. Please contact support',
-                'banned'   => 'This account has been banned'
-            ];
-
-            return response()->json([
-                'success' => false,
-                'message' => $statusMessages[$user->status] ?? 'Account is not available',
-                'account_status' => $user->status
-            ], 403);
-        }
-
-        $user->tokens()->delete();
-
-        $token = $user->createToken('auth_token')->plainTextToken;
-
-        $redirectTo = $user->isAdmin() ? '/admin/dashboard' : '/customer/home';
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Login completed successfully',
-            'data' => [
-                'user' => [
-                    'id'                => $user->id,
-                    'first_name'        => $user->first_name,
-                    'last_name'         => $user->last_name,
-                    'full_name'         => $user->full_name,
-                    'phone'             => $user->phone,
-                    'address'           => $user->address,
-                    'email'             => $user->email,
-                    'role'              => $user->role,
-                    'status'            => $user->status,
-                    'is_profile_complete' => $user->isProfileComplete(),
-                    'is_active'         => $user->isActive(),
-                    'is_admin'          => $user->isAdmin(),
+                'success' => true,
+                'message' => 'Login successful',
+                'data' => [
+                    'user' => [
+                        'id' => $user->id,
+                        'first_name' => $user->first_name,
+                        'last_name' => $user->last_name,
+                        'full_name' => $user->first_name . ' ' . $user->last_name,
+                        'phone' => $user->phone,
+                        'address' => $user->address,
+                        'email' => $user->email,
+                        'role' => $user->role,
+                        'status' => $user->status,
+                        'is_profile_complete' => $user->isProfileComplete(),
+                        'is_active' => $user->status === 'active',
+                        'is_admin' => $user->role === 'admin'
+                    ],
+                    'token' => $token,
+                    'token_type' => 'Bearer'
                 ],
-                'token' => $token,
-                'token_type' => 'Bearer'
-            ],
-            'redirect_to' => $redirectTo
-        ], 200);
+                'redirect_to' => $redirectTo
+            ]);
+
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors' => $e->errors()
+            ], 422);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred during login'
+            ], 500);
+        }
     }
 
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
+        try {
+            $user = $request->user();
+            $user->currentAccessToken()->delete();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Logged out successfully'
-        ]);
+            return response()->json([
+                'success' => true,
+                'message' => 'Logged out successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred during logout'
+            ], 500);
+        }
     }
 
-    public function me(Request $request)
+    public function user(Request $request)
     {
         $user = $request->user();
 
@@ -130,18 +184,18 @@ class AuthController extends Controller
             'success' => true,
             'data' => [
                 'user' => [
-                    'id'                => $user->id,
-                    'first_name'        => $user->first_name,
-                    'last_name'         => $user->last_name,
-                    'full_name'         => $user->full_name,
-                    'phone'             => $user->phone,
-                    'address'           => $user->address,
-                    'email'             => $user->email,
-                    'role'              => $user->role,
-                    'status'            => $user->status,
+                    'id' => $user->id,
+                    'first_name' => $user->first_name,
+                    'last_name' => $user->last_name,
+                    'full_name' => $user->first_name . ' ' . $user->last_name,
+                    'phone' => $user->phone,
+                    'address' => $user->address,
+                    'email' => $user->email,
+                    'role' => $user->role,
+                    'status' => $user->status,
                     'is_profile_complete' => $user->isProfileComplete(),
-                    'is_active'         => $user->isActive(),
-                    'is_admin'          => $user->isAdmin(),
+                    'is_active' => $user->status === 'active',
+                    'is_admin' => $user->role === 'admin'
                 ]
             ]
         ]);

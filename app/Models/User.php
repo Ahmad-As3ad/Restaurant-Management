@@ -41,19 +41,4 @@ class User extends Authenticatable
                !is_null($this->phone) &&
                !is_null($this->address);
     }
-
-    public function isActive(): bool
-    {
-        return $this->status === 'active';
-    }
-
-    public function isAdmin(): bool
-    {
-        return $this->role === 'admin';
-    }
-
-    public function getFullNameAttribute(): string
-    {
-        return $this->first_name . ' ' . $this->last_name;
-    }
 }
