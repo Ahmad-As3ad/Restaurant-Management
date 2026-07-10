@@ -41,4 +41,14 @@ class User extends Authenticatable
                !is_null($this->phone) &&
                !is_null($this->address);
     }
+    protected static function booted()
+{
+    static::created(function ($user) {
+        $user->wallet()->create([
+            'balance' => 0,
+            'total_deposited' => 0,
+            'total_spent' => 0,
+        ]);
+    });
+}
 }
