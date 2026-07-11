@@ -149,7 +149,8 @@ class AuthController extends Controller
                 'errors' => $e->errors()
             ], 422);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'An error occurred during login'

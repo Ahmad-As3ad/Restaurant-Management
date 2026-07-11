@@ -35,3 +35,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'user']);
 });
+
+
+
+Route::apiResource('meals', MealController::class);
