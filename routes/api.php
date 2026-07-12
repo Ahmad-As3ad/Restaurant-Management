@@ -43,6 +43,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
 
+
+Route::apiResource('meals', MealController::class);
+
+
+
+
+
 Route::middleware('auth:sanctum')->group(function () {
     // Wallet routes
     Route::prefix('wallet')->group(function () {
@@ -94,3 +101,5 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/', [NotificationController::class, 'destroyAll']);
     });
 });
+=======
+Route::apiResource('meals', MealController::class);
