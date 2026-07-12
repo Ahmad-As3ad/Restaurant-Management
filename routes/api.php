@@ -101,5 +101,4 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/', [NotificationController::class, 'destroyAll']);
     });
 });
-=======
 Route::apiResource('meals', MealController::class);
