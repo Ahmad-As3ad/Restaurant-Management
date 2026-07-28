@@ -22,7 +22,6 @@ class Wallet extends Model
         'total_spent' => 'decimal:2',
     ];
 
-    // العلاقات
     public function user()
     {
         return $this->belongsTo(User::class);
@@ -33,7 +32,6 @@ class Wallet extends Model
         return $this->hasMany(WalletTransaction::class);
     }
 
-    // دوال مساعدة
     public function hasSufficientBalance(float $amount): bool
     {
         return $this->balance >= $amount;

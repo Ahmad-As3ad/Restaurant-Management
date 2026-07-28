@@ -11,7 +11,6 @@ use Illuminate\Support\Facades\DB;
 
 class WalletController extends Controller
 {
-    // عرض رصيد المحفظة
     public function balance(Request $request)
     {
         $wallet = $request->user()->wallet;
@@ -30,7 +29,6 @@ class WalletController extends Controller
         ]);
     }
 
-    // شحن المحفظة
     public function deposit(DepositRequest $request)
     {
         $user = $request->user();
@@ -70,7 +68,6 @@ class WalletController extends Controller
         }
     }
 
-    // سجل المعاملات
     public function transactions(Request $request)
     {
         $user = $request->user();
@@ -85,7 +82,6 @@ class WalletController extends Controller
         ]);
     }
 
-    // سجل المعاملات مع فلتر حسب النوع
     public function transactionsByType(Request $request, string $type)
     {
         $user = $request->user();
@@ -111,7 +107,6 @@ class WalletController extends Controller
         ]);
     }
 
-    // إنشاء محفظة للمستخدم (دالة مساعدة)
     private function createWallet(int $userId): Wallet
     {
         return Wallet::create([

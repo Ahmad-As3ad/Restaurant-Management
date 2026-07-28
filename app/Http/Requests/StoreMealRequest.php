@@ -28,11 +28,11 @@ class StoreMealRequest extends FormRequest
 
     public function messages(): array
     {
-        return [
-            'name.required' => 'اسم الوجبة مطلوب',
-            'name.unique' => 'هذا الاسم موجود بالفعل',
-            'price.required' => 'السعر مطلوب',
-            'category.required' => 'التصنيف مطلوب',
+       return [
+            'name.required' => 'The meal name is required',
+            'name.unique' => 'This name already exists',
+            'price.required' => 'The price is required',
+            'category.required' => 'The category is required',
         ];
     }
 }

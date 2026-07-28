@@ -27,7 +27,6 @@ class Booking extends Model
         'booking_time' => 'datetime:H:i:s',
     ];
 
-    // العلاقات
     public function user()
     {
         return $this->belongsTo(User::class);
@@ -43,7 +42,6 @@ class Booking extends Model
         return $this->morphMany(WalletTransaction::class, 'reference');
     }
 
-    // التحقق من إمكانية الإلغاء (قبل ساعة على الأقل)
     public function canBeCancelled(): bool
     {
         if ($this->status === 'cancelled' || $this->status === 'completed') {
@@ -53,11 +51,9 @@ class Booking extends Model
         $bookingDateTime = $this->booking_date->setTimeFromTimeString($this->booking_time);
         $now = now();
 
-        // يجب أن يكون قبل موعد الحجز بساعة على الأقل
         return $bookingDateTime->diffInHours($now) >= 1;
     }
 
-    // التحقق من أن الحجز قريب (في خلال ساعة)
     public function isWithinOneHour(): bool
     {
         $bookingDateTime = $this->booking_date->setTimeFromTimeString($this->booking_time);
@@ -66,7 +62,6 @@ class Booking extends Model
         return $bookingDateTime->diffInMinutes($now) <= 60 && $bookingDateTime->isFuture();
     }
 
-    // دوال الحالة
     public function markAsConfirmed(): void
     {
         if ($this->status === 'pending') {

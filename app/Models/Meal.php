@@ -2,64 +2,80 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 
 class Meal extends Model
 {
     use HasFactory;
 
-    protected $table = 'meals';
-    protected $primaryKey = 'meal_id';
-    protected $keyType = 'int';
-    public $incrementing = true;
-
     protected $fillable = [
         'name',
-        'price',
         'description',
+        'price',
         'category',
-        'image_url',
+        'image',
         'is_active',
-        'avg_rating'
+        'rating_avg',
+        'rating_count',
     ];
 
     protected $casts = [
         'price' => 'decimal:2',
-        'avg_rating' => 'decimal:1',
         'is_active' => 'boolean',
+        'rating_avg' => 'decimal:2',
     ];
 
-    // العلاقات
+    public function mealIngredients()
+    {
+        return $this->hasMany(MealIngredient::class);
+    }
+
     public function ingredients()
     {
-        return $this->belongsToMany(
-            Ingredient::class,
-            'meal_ingredients',
-            'meal_id',
-            'ingredient_id'
-        )->withPivot('is_default');
+        return $this->belongsToMany(Ingredient::class, 'meal_ingredients')
+            ->withPivot('quantity', 'is_default')
+            ->withTimestamps();
+    }
+
+    public function orderMeals()
+    {
+        return $this->hasMany(OrderMeal::class);
     }
 
     public function ratings()
     {
-        return $this->hasMany(Rating::class, 'meal_id', 'meal_id');
+        return $this->hasMany(Rating::class);
     }
 
-    public function orderItems()
+    public function getDefaultIngredients()
     {
-        return $this->hasMany(OrderItem::class, 'meal_id', 'meal_id');
+        return $this->mealIngredients()->where('is_default', true)->get();
     }
 
-    // الـ Accessor
-    public function getIsAvailableAttribute()
+    public function getOptionalIngredients()
     {
-        // الوجبة غير متوفرة إذا أي مكون افتراضي نفذ
-        $hasUnavailableDefault = $this->ingredients()
-            ->where('is_default', true)
-            ->where('is_available', false)
-            ->exists();
+        return $this->mealIngredients()->where('is_default', false)->get();
+    }
 
-        return $this->is_active && !$hasUnavailableDefault;
+    public function updateRating()
+    {
+        $avg = $this->ratings()->avg('rating') ?? 0;
+        $count = $this->ratings()->count();
+
+        $this->update([
+            'rating_avg' => round($avg, 2),
+            'rating_count' => $count,
+        ]);
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
+    }
+
+    public function scopeCategory($query, string $category)
+    {
+        return $query->where('category', $category);
     }
 }

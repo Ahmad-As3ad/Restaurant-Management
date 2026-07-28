@@ -8,7 +8,6 @@ use Illuminate\Http\Request;
 
 class NotificationController extends Controller
 {
-    // قائمة الإشعارات
     public function index(Request $request)
     {
         $user = $request->user();
@@ -26,7 +25,6 @@ class NotificationController extends Controller
         ]);
     }
 
-    // الإشعارات غير المقروءة
     public function unread(Request $request)
     {
         $user = $request->user();
@@ -43,7 +41,6 @@ class NotificationController extends Controller
         ]);
     }
 
-    // تحديد إشعار كمقروء
     public function markAsRead(Request $request, int $id)
     {
         $user = $request->user();
@@ -67,7 +64,6 @@ class NotificationController extends Controller
         ]);
     }
 
-    // تحديد جميع الإشعارات كمقروءة
     public function markAllAsRead(Request $request)
     {
         $user = $request->user();
@@ -80,7 +76,6 @@ class NotificationController extends Controller
         ]);
     }
 
-    // حذف إشعار
     public function destroy(Request $request, int $id)
     {
         $user = $request->user();
@@ -104,7 +99,6 @@ class NotificationController extends Controller
         ]);
     }
 
-    // حذف جميع الإشعارات
     public function destroyAll(Request $request)
     {
         $user = $request->user();

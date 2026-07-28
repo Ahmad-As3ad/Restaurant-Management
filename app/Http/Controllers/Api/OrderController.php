@@ -17,7 +17,6 @@ use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
 {
-    // إنشاء طلب جديد
     public function create(CreateOrderRequest $request)
     {
         $user = $request->user();
@@ -36,7 +35,6 @@ class OrderController extends Controller
             $subtotal = 0;
             $orderMealsData = [];
 
-            // 1. التحقق من المخزون وحساب الإجمالي
             foreach ($request->items as $item) {
                 $meal = Meal::with(['mealIngredients.ingredient'])->find($item['meal_id']);
 
@@ -44,7 +42,6 @@ class OrderController extends Controller
                     throw new \Exception("Meal not found: {$item['meal_id']}");
                 }
 
-                // التحقق من المخزون لكل مكون من الوجبة
                 foreach ($meal->mealIngredients as $mealIngredient) {
                     $inventory = $mealIngredient->ingredient->inventory;
 
@@ -71,17 +68,13 @@ class OrderController extends Controller
                 ];
             }
 
-            // 2. تطبيق الكوبون (سيتم تنفيذه لاحقاً)
             $discount = 0;
             $couponId = null;
 
-            // 3. حساب الضريبة (مثلاً 10%)
             $tax = $subtotal * 0.10;
 
-            // 4. حساب الإجمالي
             $total = $subtotal - $discount + $tax;
 
-            // 5. التحقق من الرصيد
             if (!$wallet->hasSufficientBalance($total)) {
                 return response()->json([
                     'success' => false,
@@ -93,7 +86,6 @@ class OrderController extends Controller
                 ], 400);
             }
 
-            // 6. إنشاء الطلب
             $orderNumber = 'ORD-' . strtoupper(uniqid());
 
             $order = Order::create([
@@ -108,7 +100,6 @@ class OrderController extends Controller
                 'notes' => $request->notes,
             ]);
 
-            // 7. إضافة الوجبات للطلب
             foreach ($orderMealsData as $data) {
                 $orderMeal = OrderMeal::create([
                     'order_id' => $order->id,
@@ -119,16 +110,13 @@ class OrderController extends Controller
                     'customizations' => $data['customizations'],
                 ]);
 
-                // 8. معالجة التخصيصات
                 if ($data['customizations']) {
                     $this->handleCustomizations($orderMeal, $data['customizations'], $data['meal']);
                 }
 
-                // 9. خصم المخزون
                 $this->deductInventory($data['meal'], $data['quantity'], $data['customizations'] ?? null);
             }
 
-            // 10. خصم الرصيد
             $wallet->withdraw($total, 'order', $order->id, "Payment for order #{$orderNumber}");
 
             DB::commit();
@@ -153,7 +141,6 @@ class OrderController extends Controller
         }
     }
 
-    // إلغاء طلب
     public function cancel(CancelOrderRequest $request)
     {
         $user = $request->user();
@@ -181,26 +168,21 @@ class OrderController extends Controller
         try {
             $orderTotal = $order->total;
 
-            // 50% refund
             $refundAmount = $orderTotal * 0.5;
             $cancellationFee = $orderTotal * 0.5;
 
             $wallet = $user->wallet;
 
-            // استرداد 50% للمحفظة
             if ($refundAmount > 0) {
                 $wallet->refund($refundAmount, 'order', $order->id, "Refund for cancelled order #{$order->order_number}");
             }
 
-            // تسجيل رسوم الإلغاء
             if ($cancellationFee > 0) {
                 $wallet->addCancellationFee($cancellationFee, 'order', $order->id, "Cancellation fee for order #{$order->order_number}");
             }
 
-            // استرجاع الكميات للمخزون
             $this->restoreInventory($order);
 
-            // تحديث حالة الطلب
             $order->markAsCancelled();
 
             DB::commit();
@@ -227,7 +209,6 @@ class OrderController extends Controller
         }
     }
 
-    // عرض تفاصيل الطلب
     public function show(Request $request, int $id)
     {
         $user = $request->user();
@@ -250,7 +231,6 @@ class OrderController extends Controller
         ]);
     }
 
-    // قائمة طلبات المستخدم
     public function userOrders(Request $request)
     {
         $user = $request->user();
@@ -266,11 +246,9 @@ class OrderController extends Controller
         ]);
     }
 
-    // دوال مساعدة خاصة
 
     private function handleCustomizations(OrderMeal $orderMeal, array $customizations, Meal $meal): void
     {
-        // إضافة مكونات إضافية
         if (isset($customizations['added'])) {
             foreach ($customizations['added'] as $ingredientId) {
                 $this->validateIngredientBelongsToMeal($ingredientId, $meal);
@@ -281,12 +259,10 @@ class OrderController extends Controller
                     'action' => 'added',
                 ]);
 
-                // خصم المخزون للمكونات المضافة
                 $this->deductIngredientInventory($ingredientId, 1);
             }
         }
 
-        // إزالة مكونات
         if (isset($customizations['removed'])) {
             foreach ($customizations['removed'] as $ingredientId) {
                 $this->validateIngredientBelongsToMeal($ingredientId, $meal);
@@ -297,7 +273,6 @@ class OrderController extends Controller
                     'action' => 'removed',
                 ]);
 
-                // استرجاع المخزون للمكونات المزالة (لأنها لم تستخدم)
                 $this->restoreIngredientInventory($ingredientId, 1);
             }
         }
@@ -316,9 +291,7 @@ class OrderController extends Controller
 
     private function deductInventory(Meal $meal, int $quantity, ?array $customizations = null): void
     {
-        // المكونات الأساسية للوجبة
         foreach ($meal->mealIngredients as $mealIngredient) {
-            // تخطي المكونات المزالة من قبل المستخدم
             if ($customizations && isset($customizations['removed'])) {
                 if (in_array($mealIngredient->ingredient_id, $customizations['removed'])) {
                     continue;
@@ -331,7 +304,6 @@ class OrderController extends Controller
             $inventory->deduct($neededQuantity);
         }
 
-        // المكونات المضافة من قبل المستخدم
         if ($customizations && isset($customizations['added'])) {
             foreach ($customizations['added'] as $ingredientId) {
                 $this->deductIngredientInventory($ingredientId, $quantity);
@@ -360,7 +332,6 @@ class OrderController extends Controller
             $meal = $orderMeal->meal;
             $quantity = $orderMeal->quantity;
 
-            // استرجاع المخزون للمكونات الأساسية
             foreach ($meal->mealIngredients as $mealIngredient) {
                 $inventory = $mealIngredient->ingredient->inventory;
                 $quantityToRestore = $mealIngredient->quantity * $quantity;
@@ -368,7 +339,6 @@ class OrderController extends Controller
                 $inventory->add($quantityToRestore);
             }
 
-            // استرجاع المخزون للمكونات المضافة (إذا كانت موجودة)
             $addedIngredients = $orderMeal->orderMealIngredients()
                 ->where('action', 'added')
                 ->get();
@@ -383,12 +353,113 @@ class OrderController extends Controller
     {
         $ingredient = \App\Models\Ingredient::find($ingredientId);
         if (!$ingredient) {
-            return; // تخطي إذا لم يتم العثور على المكون
-        }
+            return; }
 
         $inventory = $ingredient->inventory;
         if ($inventory) {
             $inventory->add($quantity);
         }
     }
+
+public function adminOrders(Request $request)
+{
+    $user = $request->user();
+
+    $query = Order::with(['user', 'orderMeals.meal']);
+
+    if ($user->role === 'chef') {
+        $query->whereIn('status', ['pending', 'preparing']);
+    }
+
+    if ($request->status) {
+        $query->where('status', $request->status);
+    }
+
+    if ($request->date) {
+        $query->whereDate('created_at', $request->date);
+    }
+
+    $orders = $query->orderBy('created_at', 'desc')
+        ->paginate($request->per_page ?? 20);
+
+    return response()->json([
+        'success' => true,
+        'data' => $orders,
+    ]);
+}
+
+public function updateStatus(Request $request, $id)
+{
+    $user = $request->user();
+    $order = Order::find($id);
+
+    if (!$order) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Order not found',
+        ], 404);
+    }
+
+    $request->validate([
+        'status' => 'required|in:pending,preparing,ready,collected,cancelled',
+    ]);
+
+    if ($user->role === 'chef' && $request->status !== 'ready') {
+        return response()->json([
+            'success' => false,
+            'message' => 'Chef can only change status to ready',
+        ], 403);
+    }
+
+    $oldStatus = $order->status;
+    $order->status = $request->status;
+
+    if ($request->status === 'ready') {
+        $order->ready_at = now();
+    }
+
+    if ($request->status === 'collected') {
+        $order->collected_at = now();
+    }
+
+    $order->save();
+
+    $notificationService = new \App\Services\NotificationService();
+
+    if ($request->status === 'ready') {
+        $notificationService->orderReady($order->user_id, $order->order_number);
+    }
+
+    if ($request->status === 'cancelled') {
+        $notificationService->orderCancelled($order->user_id, $order->order_number);
+    }
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Order status updated',
+        'data' => [
+            'order' => $order,
+            'old_status' => $oldStatus,
+            'new_status' => $order->status,
+        ],
+    ]);
+}
+
+public function adminShow($id)
+{
+    $order = Order::with(['user', 'orderMeals.meal', 'orderMeals.orderMealIngredients.ingredient'])
+        ->find($id);
+
+    if (!$order) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Order not found',
+        ], 404);
+    }
+
+    return response()->json([
+        'success' => true,
+        'data' => $order,
+    ]);
+}
 }

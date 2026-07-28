@@ -25,7 +25,6 @@ class WalletTransaction extends Model
         'balance_after' => 'decimal:2',
     ];
 
-    // العلاقات
     public function wallet()
     {
         return $this->belongsTo(Wallet::class);
@@ -47,7 +46,6 @@ class WalletTransaction extends Model
         return null;
     }
 
-    // سكوبات
     public function scopeDeposits($query)
     {
         return $query->where('type', 'deposit');

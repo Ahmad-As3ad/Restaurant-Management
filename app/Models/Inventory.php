@@ -23,7 +23,6 @@ class Inventory extends Model
         'min_quantity' => 'decimal:2',
     ];
 
-    // العلاقات
     public function ingredient()
     {
         return $this->belongsTo(Ingredient::class);
@@ -34,13 +33,11 @@ class Inventory extends Model
         return $this->hasMany(MealIngredient::class);
     }
 
-    // التحقق من توفر الكمية
     public function hasSufficientQuantity(float $needed): bool
     {
         return $this->quantity >= $needed;
     }
 
-    // خصم الكمية
     public function deduct(float $quantity): void
     {
         if (!$this->hasSufficientQuantity($quantity)) {
@@ -51,14 +48,12 @@ class Inventory extends Model
         $this->save();
     }
 
-    // إضافة كمية
     public function add(float $quantity): void
     {
         $this->quantity += $quantity;
         $this->save();
     }
 
-    // التحقق من أن الكمية منخفضة
     public function isLow(): bool
     {
         return $this->quantity <= $this->min_quantity;

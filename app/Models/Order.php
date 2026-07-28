@@ -33,7 +33,6 @@ class Order extends Model
         'collected_at' => 'datetime',
     ];
 
-    // العلاقات
     public function user()
     {
         return $this->belongsTo(User::class);
@@ -49,19 +48,16 @@ class Order extends Model
         return $this->morphMany(WalletTransaction::class, 'reference');
     }
 
-    // الحالات المسموح فيها الإلغاء
     public function canBeCancelled(): bool
     {
         return in_array($this->status, ['pending', 'preparing']);
     }
 
-    // التحقق من الإلغاء
     public function isCancellable(): bool
     {
         return $this->canBeCancelled();
     }
 
-    // دوال الحالة
     public function markAsPreparing(): void
     {
         if ($this->status === 'pending') {

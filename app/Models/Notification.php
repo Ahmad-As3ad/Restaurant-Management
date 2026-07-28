@@ -25,13 +25,11 @@ class Notification extends Model
         'read_at' => 'datetime',
     ];
 
-    // العلاقات
     public function user()
     {
         return $this->belongsTo(User::class);
     }
 
-    // تحديد كغير مقروء
     public function markAsRead(): void
     {
         $this->is_read = true;
@@ -39,7 +37,6 @@ class Notification extends Model
         $this->save();
     }
 
-    // تحديد كغير مقروء دفعة واحدة
     public static function markAllAsRead(int $userId): void
     {
         self::where('user_id', $userId)
@@ -50,7 +47,6 @@ class Notification extends Model
             ]);
     }
 
-    // سكوبات
     public function scopeUnread($query)
     {
         return $query->where('is_read', false);

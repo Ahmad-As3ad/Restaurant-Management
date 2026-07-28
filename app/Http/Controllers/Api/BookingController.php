@@ -13,7 +13,6 @@ use Illuminate\Support\Facades\DB;
 
 class BookingController extends Controller
 {
-    // إنشاء حجز جديد
     public function create(CreateBookingRequest $request)
     {
         $user = $request->user();
@@ -28,7 +27,6 @@ class BookingController extends Controller
 
         $table = Table::find($request->table_id);
 
-        // التحقق من سعة الطاولة
         if ($table->capacity < $request->number_of_people) {
             return response()->json([
                 'success' => false,
@@ -40,7 +38,6 @@ class BookingController extends Controller
             ], 400);
         }
 
-        // التحقق من توفر الطاولة في الوقت المطلوب
         $isAvailable = $this->checkTableAvailability(
             $request->table_id,
             $request->booking_date,
@@ -54,10 +51,8 @@ class BookingController extends Controller
             ], 400);
         }
 
-        // حساب السعر الإجمالي
         $totalPrice = $table->price_per_person * $request->number_of_people;
 
-        // التحقق من الرصيد
         if (!$wallet->hasSufficientBalance($totalPrice)) {
             return response()->json([
                 'success' => false,
@@ -72,7 +67,6 @@ class BookingController extends Controller
         DB::beginTransaction();
 
         try {
-            // إنشاء الحجز
             $bookingNumber = 'BK-' . strtoupper(uniqid());
 
             $booking = Booking::create([
@@ -87,7 +81,6 @@ class BookingController extends Controller
                 'notes' => $request->notes,
             ]);
 
-            // خصم الرصيد
             $wallet->withdraw($totalPrice, 'booking', $booking->id, "Payment for booking #{$bookingNumber}");
 
             DB::commit();
@@ -112,7 +105,6 @@ class BookingController extends Controller
         }
     }
 
-    // إلغاء حجز
     public function cancel(CancelBookingRequest $request)
     {
         $user = $request->user();
@@ -151,23 +143,19 @@ class BookingController extends Controller
         try {
             $bookingTotal = $booking->total_price;
 
-            // 50% refund
             $refundAmount = $bookingTotal * 0.5;
             $cancellationFee = $bookingTotal * 0.5;
 
             $wallet = $user->wallet;
 
-            // استرداد 50% للمحفظة
             if ($refundAmount > 0) {
                 $wallet->refund($refundAmount, 'booking', $booking->id, "Refund for cancelled booking #{$booking->booking_number}");
             }
 
-            // تسجيل رسوم الإلغاء
             if ($cancellationFee > 0) {
                 $wallet->addCancellationFee($cancellationFee, 'booking', $booking->id, "Cancellation fee for booking #{$booking->booking_number}");
             }
 
-            // تحديث حالة الحجز
             $booking->markAsCancelled();
 
             DB::commit();
@@ -194,7 +182,6 @@ class BookingController extends Controller
         }
     }
 
-    // عرض تفاصيل الحجز
     public function show(Request $request, int $id)
     {
         $user = $request->user();
@@ -217,7 +204,6 @@ class BookingController extends Controller
         ]);
     }
 
-    // قائمة حجوزات المستخدم
     public function userBookings(Request $request)
     {
         $user = $request->user();
@@ -234,7 +220,6 @@ class BookingController extends Controller
         ]);
     }
 
-    // الحجوزات القادمة
     public function upcomingBookings(Request $request)
     {
         $user = $request->user();
@@ -253,11 +238,9 @@ class BookingController extends Controller
         ]);
     }
 
-    // دوال مساعدة
 
     private function checkTableAvailability(int $tableId, string $date, string $time): bool
     {
-        // التحقق من الحجوزات النشطة في نفس الوقت
         $existingBooking = Booking::where('table_id', $tableId)
             ->where('booking_date', $date)
             ->where('booking_time', $time)
@@ -270,4 +253,123 @@ class BookingController extends Controller
 
         return true;
     }
+
+public function adminBookings(Request $request)
+{
+    $user = $request->user();
+
+    $query = Booking::with(['user', 'table']);
+
+    if ($request->status) {
+        $query->where('status', $request->status);
+    }
+
+    if ($request->date) {
+        $query->whereDate('booking_date', $request->date);
+    }
+
+    $bookings = $query->orderBy('booking_date', 'asc')
+        ->orderBy('booking_time', 'asc')
+        ->paginate($request->per_page ?? 20);
+
+    return response()->json([
+        'success' => true,
+        'data' => $bookings,
+    ]);
+}
+
+public function confirm(Request $request, $id)
+{
+    $booking = Booking::find($id);
+
+    if (!$booking) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Booking not found',
+        ], 404);
+    }
+
+    if ($booking->status !== 'pending') {
+        return response()->json([
+            'success' => false,
+            'message' => 'Booking cannot be confirmed at this stage',
+            'current_status' => $booking->status,
+        ], 400);
+    }
+
+    $booking->markAsConfirmed();
+
+    $notificationService = new \App\Services\NotificationService();
+    $notificationService->bookingConfirmed($booking->user_id, $booking->booking_number);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Booking confirmed',
+        'data' => $booking,
+    ]);
+}
+
+public function adminCancel(Request $request, $id)
+{
+    $booking = Booking::find($id);
+
+    if (!$booking) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Booking not found',
+        ], 404);
+    }
+
+    if ($booking->status === 'cancelled' || $booking->status === 'completed') {
+        return response()->json([
+            'success' => false,
+            'message' => 'Booking cannot be cancelled',
+            'current_status' => $booking->status,
+        ], 400);
+    }
+
+    DB::beginTransaction();
+
+    try {
+        $bookingTotal = $booking->total_price;
+        $refundAmount = $bookingTotal * 0.5;
+        $cancellationFee = $bookingTotal * 0.5;
+
+        $wallet = $booking->user->wallet;
+
+        if ($refundAmount > 0) {
+            $wallet->refund($refundAmount, 'booking', $booking->id, "Refund for cancelled booking #{$booking->booking_number}");
+        }
+
+        if ($cancellationFee > 0) {
+            $wallet->addCancellationFee($cancellationFee, 'booking', $booking->id, "Cancellation fee for booking #{$booking->booking_number}");
+        }
+
+        $booking->markAsCancelled();
+
+        $notificationService = new \App\Services\NotificationService();
+        $notificationService->bookingCancelled($booking->user_id, $booking->booking_number);
+
+        DB::commit();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Booking cancelled by admin',
+            'data' => [
+                'booking' => $booking,
+                'refund_amount' => $refundAmount,
+                'cancellation_fee' => $cancellationFee,
+            ],
+        ]);
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Booking cancellation failed',
+            'error' => $e->getMessage(),
+        ], 500);
+    }
+}
 }

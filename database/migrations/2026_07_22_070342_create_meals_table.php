@@ -9,19 +9,16 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('meals', function (Blueprint $table) {
-            $table->id('meal_id');
-            $table->string('name')->unique();
-            $table->decimal('price', 8, 2);
+            $table->id();
+            $table->string('name');
             $table->text('description')->nullable();
-            $table->string('category');
-            $table->string('image_url')->nullable();
+            $table->decimal('price', 10, 2);
+            $table->enum('category', ['appetizer', 'main', 'drink', 'dessert'])->default('main');
+            $table->string('image')->nullable();
             $table->boolean('is_active')->default(true);
-            $table->decimal('avg_rating', 3, 1)->default(0);
+            $table->decimal('rating_avg', 3, 2)->default(0);
+            $table->integer('rating_count')->default(0);
             $table->timestamps();
-            $table->softDeletes(); // للحذف الناعم إذا احتاج
-
-            $table->index('category');
-            $table->index('is_active');
         });
     }
 

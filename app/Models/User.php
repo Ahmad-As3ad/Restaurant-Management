@@ -18,8 +18,8 @@ class User extends Authenticatable
         'address',
         'email',
         'password',
-        'role',
-        'status'
+        'role', // customer, admin, chef, booking_staff, accountant
+        'status',
     ];
 
     protected $hidden = [
@@ -34,6 +34,41 @@ class User extends Authenticatable
         ];
     }
 
+    public function wallet()
+    {
+        return $this->hasOne(Wallet::class);
+    }
+
+    public function orders()
+    {
+        return $this->hasMany(Order::class);
+    }
+
+    public function bookings()
+    {
+        return $this->hasMany(Booking::class);
+    }
+
+    public function ratings()
+    {
+        return $this->hasMany(Rating::class);
+    }
+
+    public function notifications()
+    {
+        return $this->hasMany(Notification::class);
+    }
+
+    public function userCoupons()
+    {
+        return $this->hasMany(UserCoupon::class);
+    }
+
+    public function walletTransactions()
+    {
+        return $this->hasMany(WalletTransaction::class);
+    }
+
     public function isProfileComplete(): bool
     {
         return !is_null($this->first_name) &&
@@ -41,14 +76,39 @@ class User extends Authenticatable
                !is_null($this->phone) &&
                !is_null($this->address);
     }
-    protected static function booted()
-{
-    static::created(function ($user) {
-        $user->wallet()->create([
-            'balance' => 0,
-            'total_deposited' => 0,
-            'total_spent' => 0,
-        ]);
-    });
-}
+
+    public function isActive(): bool
+    {
+        return $this->status === 'active';
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+
+    public function isChef(): bool
+    {
+        return $this->role === 'chef';
+    }
+
+    public function isBookingStaff(): bool
+    {
+        return $this->role === 'booking_staff';
+    }
+
+    public function isAccountant(): bool
+    {
+        return $this->role === 'accountant';
+    }
+
+    public function isStaff(): bool
+    {
+        return in_array($this->role, ['admin', 'chef', 'booking_staff', 'accountant']);
+    }
+
+    public function getFullNameAttribute(): string
+    {
+        return $this->first_name . ' ' . $this->last_name;
+    }
 }
