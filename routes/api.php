@@ -13,7 +13,7 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\ReportController;
 use Illuminate\Support\Facades\Route;
-
+use App\Http\Controllers\Api\FavoriteController;
 // ============================================================
 // PUBLIC ROUTES - لا تحتاج توكن
 // ============================================================
@@ -508,6 +508,57 @@ Route::middleware('auth:sanctum')->group(function () {
     */
     Route::get('/reports/monthly', [ReportController::class, 'monthly']);
 
+    // routes/api.php - أضف داخل protected routes
+
+// ===================== المفضلة =====================
+
+/*
+|--------------------------------------------------------------------------
+| POST /api/favorites/add
+|--------------------------------------------------------------------------
+| إضافة وجبة إلى المفضلة
+| Required: meal_id
+| Requires: Bearer Token
+*/
+Route::post('/favorites/add', [FavoriteController::class, 'add']);
+
+/*
+|--------------------------------------------------------------------------
+| POST /api/favorites/remove
+|--------------------------------------------------------------------------
+| حذف وجبة من المفضلة
+| Required: meal_id
+| Requires: Bearer Token
+*/
+Route::post('/favorites/remove', [FavoriteController::class, 'remove']);
+
+/*
+|--------------------------------------------------------------------------
+| GET /api/favorites
+|--------------------------------------------------------------------------
+| عرض قائمة المفضلة لدى المستخدم
+| Optional: per_page
+| Requires: Bearer Token
+*/
+Route::get('/favorites', [FavoriteController::class, 'index']);
+
+/*
+|--------------------------------------------------------------------------
+| GET /api/favorites/check/{mealId}
+|--------------------------------------------------------------------------
+| التحقق مما إذا كانت وجبة في المفضلة
+| Requires: Bearer Token
+*/
+Route::get('/favorites/check/{mealId}', [FavoriteController::class, 'check']);
+
+/*
+|--------------------------------------------------------------------------
+| DELETE /api/favorites/clear
+|--------------------------------------------------------------------------
+| حذف جميع المفضلة
+| Requires: Bearer Token
+*/
+Route::delete('/favorites/clear', [FavoriteController::class, 'clear']);
     // ============================================================
     // ADMIN ROUTES - تتطلب توكن + دور admin
     // ============================================================
